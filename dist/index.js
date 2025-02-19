@@ -12,31 +12,33 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const amqplib_1 = __importDefault(require("amqplib"));
 const express_1 = __importDefault(require("express"));
-const node_http_1 = require("node:http");
-const socket_io_1 = require("socket.io");
-const cors_1 = __importDefault(require("cors"));
 const app = (0, express_1.default)();
-const server = (0, node_http_1.createServer)(app);
-const ioServer = new socket_io_1.Server(server);
-// Enable CORS for all routes
-app.use((0, cors_1.default)({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-// Add middleware to parse JSON
+const PORT = 3001;
 app.use(express_1.default.json());
-app.post('/api/compiler', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { language, code } = req.body;
-    if (!language || !code) {
-        return res.status(400).json({ error: 'Language and code are required' });
-    }
-    console.log('Language:', language);
-    res.json({ message: 'Received language: ' + language });
+let channel, connection;
+connect();
+function connect() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const amqpServer = 'amqp://localhost:5672'; //amqp means Advanced Message Queuing Protocol and here i have provided the link for the amqp server also rabbitmq have default port as 5672
+            connection = yield amqplib_1.default.connect(amqpServer); //establising connection to amqp server 
+            channel = yield connection.createChannel(); //creating channel for amqp server 
+            yield channel.assertQueue('CodeSender'); // here i am using the channel we have created and putting in queue name as CodeSender 
+        }
+        catch (err) {
+            console.log(`unable to connect to RabbitMq please make sure that the server url is correct or server is active  ${err}`);
+        }
+    });
+}
+app.post('/api/compile', (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const data = req.body;
+    channel.sendToQueue('CodeSender', Buffer.from(JSON.stringify(Object.assign(Object.assign({}, data), { date: new Date() }))));
+    res.status(200).json({
+        msg: `Code sended to amqp`
+    });
 }));
-// Start server
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`);
 });

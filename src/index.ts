@@ -1,35 +1,34 @@
-import express from 'express';
-import { createServer } from 'node:http';
-import { Server } from 'socket.io';
-import cors from 'cors';
+import amqplib,{ Channel, Connection } from 'amqplib'
 
-const app = express();
-const server = createServer(app);
-const ioServer = new Server(server);
+import express from 'express'
+const app = express()
+const PORT = 3001
+app.use(express.json())
+let channel: Channel, connection:Connection;
 
-// Enable CORS for all routes
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Add middleware to parse JSON
-app.use(express.json());
-
-app.post('/api/compiler', async (req:any, res:any) => {
-    const { language, code } = req.body;
-    
-    if (!language || !code) {
-        return res.status(400).json({ error: 'Language and code are required' });
+connect()
+async function connect(){
+    try{
+        const amqpServer = 'amqp://localhost:5672' //amqp means Advanced Message Queuing Protocol and here i have provided the link for the amqp server also rabbitmq have default port as 5672
+        connection =await amqplib.connect(amqpServer) //establising connection to amqp server 
+        channel = await connection.createChannel() //creating channel for amqp server 
+        await channel.assertQueue('CodeSender') // here i am using the channel we have created and putting in queue name as CodeSender 
     }
+    catch(err){
+        console.log(`unable to connect to RabbitMq please make sure that the server url is correct or server is active  ${err}`)
+    }
+}
+app.post('/api/compile',async (req,res)=>{
+    const data = req.body;
+    channel.sendToQueue('CodeSender',Buffer.from(JSON.stringify({
+        ...data,
+        date: new Date(),
+    })))
+    res.status(200).json({
+        msg: `Code sended to amqp`
+    })
+})
 
-    console.log('Language:', language);
-    res.json({ message: 'Received language: ' + language });
-});
-
-// Start server
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`)
+  })
