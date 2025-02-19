@@ -1,9 +1,23 @@
 import amqplib,{ Channel, Connection } from 'amqplib'
-
+import cors from 'cors'
 import express from 'express'
+
 const app = express()
 const PORT = 3001
-app.use(express.json())
+
+// CORS configuration
+const corsOptions = {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    optionsSuccessStatus: 204
+};
+
+// Apply CORS before other middleware
+app.use(cors(corsOptions));
+app.use(express.json());
+
 let channel: Channel, connection:Connection;
 
 connect()
